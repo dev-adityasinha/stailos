@@ -22,7 +22,7 @@ def catalog(ctx=Depends(require("reports", "read"))):
 @router.post("/generate")
 def generate(
     body: GenerateRequest, ctx=Depends(require("reports", "create")),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db, scope="function"),
 ):
     result = service.generate(db, ctx, body.type, body.format)
     record_audit(

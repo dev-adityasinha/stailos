@@ -27,32 +27,32 @@ router = APIRouter(prefix="/events", tags=["events"])
 
 
 @router.get("/public/{slug}")
-def public_event(slug: str, db: Session = Depends(get_db)):
+def public_event(slug: str, db: Session = Depends(get_db, scope="function")):
     event = service.get_published_event(db, slug)
     return {"data": EventOut.model_validate(event).model_dump()}
 
 
 @router.post("/public/{slug}/register", status_code=status.HTTP_201_CREATED)
-def public_register(slug: str, body: RegistrationCreate, db: Session = Depends(get_db)):
+def public_register(slug: str, body: RegistrationCreate, db: Session = Depends(get_db, scope="function")):
     event = service.get_published_event(db, slug)
     registration = service.register_for_event(db, event, body.model_dump())
     return {"data": RegistrationOut.model_validate(registration).model_dump()}
 
 
 @router.post("/public/{slug}/rsvp")
-def public_confirm_rsvp(slug: str, body: CheckinRequest, db: Session = Depends(get_db)):
+def public_confirm_rsvp(slug: str, body: CheckinRequest, db: Session = Depends(get_db, scope="function")):
     registration = service.confirm_rsvp_public(db, slug, body.token)
     return {"data": RegistrationOut.model_validate(registration).model_dump()}
 
 
 @router.get("/public/{slug}/qr")
-def public_qr(slug: str, token: str, db: Session = Depends(get_db)):
+def public_qr(slug: str, token: str, db: Session = Depends(get_db, scope="function")):
     png = service.get_qr_png_for_token(db, slug, token)
     return Response(content=png, media_type="image/png")
 
 
 @router.get("/public/{slug}/referrals/{code}/count")
-def public_referral_count(slug: str, code: str, db: Session = Depends(get_db)):
+def public_referral_count(slug: str, code: str, db: Session = Depends(get_db, scope="function")):
     event = service.get_published_event(db, slug)
     return {"data": {"count": service.count_referrals(db, event.id, code)}}
 
@@ -61,14 +61,14 @@ def public_referral_count(slug: str, code: str, db: Session = Depends(get_db)):
 
 
 @router.get("")
-def list_events(ctx=Depends(require("events", "read")), db: Session = Depends(get_db)):
+def list_events(ctx=Depends(require("events", "read")), db: Session = Depends(get_db, scope="function")):
     rows = service.list_events(db, ctx)
     return {"data": [EventOut.model_validate(e).model_dump() for e in rows]}
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
 def create_event(
-    body: EventCreate, ctx=Depends(require("events", "create")), db: Session = Depends(get_db)
+    body: EventCreate, ctx=Depends(require("events", "create")), db: Session = Depends(get_db, scope="function")
 ):
     event = service.create_event(db, ctx, body.model_dump())
     return {"data": EventOut.model_validate(event).model_dump()}
@@ -76,7 +76,7 @@ def create_event(
 
 @router.get("/{event_id}")
 def get_event(
-    event_id: str, ctx=Depends(require("events", "read")), db: Session = Depends(get_db)
+    event_id: str, ctx=Depends(require("events", "read")), db: Session = Depends(get_db, scope="function")
 ):
     event = service.get_event_scoped(db, ctx, event_id)
     return {"data": EventOut.model_validate(event).model_dump()}
@@ -85,7 +85,7 @@ def get_event(
 @router.patch("/{event_id}")
 def update_event(
     event_id: str, body: EventUpdate,
-    ctx=Depends(require("events", "update")), db: Session = Depends(get_db),
+    ctx=Depends(require("events", "update")), db: Session = Depends(get_db, scope="function"),
 ):
     event = service.update_event(db, ctx, event_id, body.model_dump(exclude_unset=True))
     return {"data": EventOut.model_validate(event).model_dump()}
@@ -93,7 +93,7 @@ def update_event(
 
 @router.delete("/{event_id}")
 def delete_event(
-    event_id: str, ctx=Depends(require("events", "delete")), db: Session = Depends(get_db)
+    event_id: str, ctx=Depends(require("events", "delete")), db: Session = Depends(get_db, scope="function")
 ):
     service.delete_event(db, ctx, event_id)
     return {"data": {"message": "Event deleted"}}
@@ -102,7 +102,7 @@ def delete_event(
 @router.post("/{event_id}/speakers", status_code=status.HTTP_201_CREATED)
 def add_speaker(
     event_id: str, body: SpeakerIn,
-    ctx=Depends(require("events", "update")), db: Session = Depends(get_db),
+    ctx=Depends(require("events", "update")), db: Session = Depends(get_db, scope="function"),
 ):
     speaker = service.add_speaker(db, ctx, event_id, body.model_dump())
     return {"data": SpeakerOut.model_validate(speaker).model_dump()}
@@ -111,7 +111,7 @@ def add_speaker(
 @router.patch("/{event_id}/speakers/{speaker_id}")
 def update_speaker(
     event_id: str, speaker_id: str, body: SpeakerIn,
-    ctx=Depends(require("events", "update")), db: Session = Depends(get_db),
+    ctx=Depends(require("events", "update")), db: Session = Depends(get_db, scope="function"),
 ):
     speaker = service.update_speaker(db, ctx, event_id, speaker_id, body.model_dump())
     return {"data": SpeakerOut.model_validate(speaker).model_dump()}
@@ -120,7 +120,7 @@ def update_speaker(
 @router.delete("/{event_id}/speakers/{speaker_id}")
 def delete_speaker(
     event_id: str, speaker_id: str,
-    ctx=Depends(require("events", "update")), db: Session = Depends(get_db),
+    ctx=Depends(require("events", "update")), db: Session = Depends(get_db, scope="function"),
 ):
     service.delete_speaker(db, ctx, event_id, speaker_id)
     return {"data": {"message": "Speaker deleted"}}
@@ -129,7 +129,7 @@ def delete_speaker(
 @router.post("/{event_id}/agenda", status_code=status.HTTP_201_CREATED)
 def add_agenda_item(
     event_id: str, body: AgendaItemIn,
-    ctx=Depends(require("events", "update")), db: Session = Depends(get_db),
+    ctx=Depends(require("events", "update")), db: Session = Depends(get_db, scope="function"),
 ):
     item = service.add_agenda_item(db, ctx, event_id, body.model_dump())
     return {"data": AgendaItemOut.model_validate(item).model_dump()}
@@ -138,7 +138,7 @@ def add_agenda_item(
 @router.patch("/{event_id}/agenda/{item_id}")
 def update_agenda_item(
     event_id: str, item_id: str, body: AgendaItemIn,
-    ctx=Depends(require("events", "update")), db: Session = Depends(get_db),
+    ctx=Depends(require("events", "update")), db: Session = Depends(get_db, scope="function"),
 ):
     item = service.update_agenda_item(db, ctx, event_id, item_id, body.model_dump())
     return {"data": AgendaItemOut.model_validate(item).model_dump()}
@@ -147,7 +147,7 @@ def update_agenda_item(
 @router.delete("/{event_id}/agenda/{item_id}")
 def delete_agenda_item(
     event_id: str, item_id: str,
-    ctx=Depends(require("events", "update")), db: Session = Depends(get_db),
+    ctx=Depends(require("events", "update")), db: Session = Depends(get_db, scope="function"),
 ):
     service.delete_agenda_item(db, ctx, event_id, item_id)
     return {"data": {"message": "Agenda item deleted"}}
@@ -155,7 +155,7 @@ def delete_agenda_item(
 
 @router.get("/{event_id}/registrations")
 def list_registrations(
-    event_id: str, ctx=Depends(require("events", "read")), db: Session = Depends(get_db)
+    event_id: str, ctx=Depends(require("events", "read")), db: Session = Depends(get_db, scope="function")
 ):
     rows = service.list_registrations(db, ctx, event_id)
     return {"data": [RegistrationOut.model_validate(r).model_dump() for r in rows]}
@@ -164,7 +164,7 @@ def list_registrations(
 @router.post("/{event_id}/checkin")
 def check_in(
     event_id: str, body: CheckinRequest,
-    ctx=Depends(require("events", "update")), db: Session = Depends(get_db),
+    ctx=Depends(require("events", "update")), db: Session = Depends(get_db, scope="function"),
 ):
     registration = service.check_in(db, ctx, event_id, body.token)
     return {"data": RegistrationOut.model_validate(registration).model_dump()}
@@ -173,7 +173,7 @@ def check_in(
 @router.get("/{event_id}/registrations/{registration_id}/badge.pdf")
 def badge_pdf(
     event_id: str, registration_id: str,
-    ctx=Depends(require("events", "read")), db: Session = Depends(get_db),
+    ctx=Depends(require("events", "read")), db: Session = Depends(get_db, scope="function"),
 ):
     content = service.generate_badge_pdf(db, ctx, event_id, registration_id)
     return Response(
@@ -184,7 +184,7 @@ def badge_pdf(
 
 @router.get("/{event_id}/dashboard")
 def dashboard(
-    event_id: str, ctx=Depends(require("events", "read")), db: Session = Depends(get_db)
+    event_id: str, ctx=Depends(require("events", "read")), db: Session = Depends(get_db, scope="function")
 ):
     data = service.get_dashboard(db, ctx, event_id)
     return {"data": EventDashboard(**data).model_dump()}

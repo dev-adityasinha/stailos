@@ -31,7 +31,7 @@ def list_customers(
     limit: int = Query(default=25, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
     ctx=Depends(require("customers", "read")),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db, scope="function"),
 ):
     query = service.scoped_query(db, ctx)
     if q:
@@ -61,7 +61,7 @@ def list_customers(
 @router.post("", status_code=status.HTTP_201_CREATED)
 def create_customer(
     body: CustomerCreate, ctx=Depends(require("customers", "create")),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db, scope="function"),
 ):
     customer = service.create_customer(db, ctx, body.model_dump(exclude_unset=True))
     return {"data": CustomerOut.model_validate(customer).model_dump()}
@@ -69,7 +69,7 @@ def create_customer(
 
 @router.get("/{customer_id}")
 def get_customer(
-    customer_id: str, ctx=Depends(require("customers", "read")), db: Session = Depends(get_db)
+    customer_id: str, ctx=Depends(require("customers", "read")), db: Session = Depends(get_db, scope="function")
 ):
     customer = service.get_customer_scoped(db, ctx, customer_id)
     return {"data": CustomerOut.model_validate(customer).model_dump()}
@@ -77,7 +77,7 @@ def get_customer(
 
 @router.get("/{customer_id}/360")
 def customer_360(
-    customer_id: str, ctx=Depends(require("customers", "read")), db: Session = Depends(get_db)
+    customer_id: str, ctx=Depends(require("customers", "read")), db: Session = Depends(get_db, scope="function")
 ):
     from app.modules.documents.router import DocumentOut
 
@@ -100,7 +100,7 @@ def update_customer(
     customer_id: str,
     body: CustomerUpdate,
     ctx=Depends(require("customers", "update")),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db, scope="function"),
 ):
     customer = service.update_customer(db, ctx, customer_id, body.model_dump(exclude_unset=True))
     return {"data": CustomerOut.model_validate(customer).model_dump()}
@@ -108,7 +108,7 @@ def update_customer(
 
 @router.delete("/{customer_id}")
 def delete_customer(
-    customer_id: str, ctx=Depends(require("customers", "delete")), db: Session = Depends(get_db)
+    customer_id: str, ctx=Depends(require("customers", "delete")), db: Session = Depends(get_db, scope="function")
 ):
     service.delete_customer(db, ctx, customer_id)
     return {"data": {"message": "Customer deleted"}}
@@ -119,7 +119,7 @@ def convert_lead(
     lead_id: str,
     body: ConvertLeadRequest,
     ctx=Depends(require("customers", "create")),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db, scope="function"),
 ):
     lead = get_lead_scoped(db, ctx, lead_id)
     customer = service.convert_lead(db, ctx, lead, body.model_dump(exclude_unset=True))

@@ -32,7 +32,7 @@ def list_audit(
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
     ctx=Depends(require("audit", "read")),  # only admin roles hold audit:read
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db, scope="function"),
 ):
     q = select(AuditLog).where(AuditLog.tenant_id == ctx.user.tenant_id)
     if action:

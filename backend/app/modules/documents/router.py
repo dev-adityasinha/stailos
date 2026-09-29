@@ -75,7 +75,7 @@ async def upload(
     entity_type: str | None = Form(default=None),
     entity_id: str | None = Form(default=None),
     ctx=Depends(require("documents", "create")),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db, scope="function"),
 ):
     if category not in DOCUMENT_CATEGORIES:
         category = "other"
@@ -118,7 +118,7 @@ def list_documents(
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
     ctx=Depends(require("documents", "read")),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db, scope="function"),
 ):
     if entity_type and entity_id:
         _check_entity_scope(db, ctx, entity_type, entity_id)
@@ -159,7 +159,7 @@ def _get_document(db: Session, ctx, document_id: str) -> Document:
 @router.get("/{document_id}")
 def get_document(
     document_id: str, ctx=Depends(require("documents", "read")),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db, scope="function"),
 ):
     doc = _get_document(db, ctx, document_id)
     return {"data": DocumentOut.model_validate(doc).model_dump()}
@@ -171,7 +171,7 @@ async def add_version(
     file: UploadFile,
     note: str | None = Form(default=None),
     ctx=Depends(require("documents", "update")),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db, scope="function"),
 ):
     doc = _get_document(db, ctx, document_id)
     content = await file.read()
@@ -199,7 +199,7 @@ def download(
     document_id: str,
     version: int | None = None,
     ctx=Depends(require("documents", "read")),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db, scope="function"),
 ):
     doc = _get_document(db, ctx, document_id)
     wanted = version or doc.current_version

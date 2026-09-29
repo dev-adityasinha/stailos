@@ -31,6 +31,9 @@ test.describe("AI policy from onboarding answers", () => {
     await consentCard.getByRole("button", { name: "No" }).last().click();
     await page.getByRole("button", { name: /save consent/i }).click();
     await expect(page.getByText("AI features are currently switched off")).toBeVisible();
+    // That warning shows as soon as "No" is picked; only "Saved" means the
+    // PATCH landed. Navigating before it aborts the save.
+    await expect(page.getByText("Saved")).toBeVisible();
 
     await page.goto("/leads");
     await page.getByText("Policy Lead").first().click();

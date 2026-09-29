@@ -31,7 +31,7 @@ def search_units(
     min_price: Decimal | None = None,
     max_price: Decimal | None = None,
     ctx=Depends(require("properties", "read")),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db, scope="function"),
 ):
     units = service.provider.search_units(
         db,
@@ -48,7 +48,7 @@ def search_units(
 @router.post("/projects", status_code=status.HTTP_201_CREATED)
 def create_project(
     body: ProjectCreate, ctx=Depends(require("properties", "create")),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db, scope="function"),
 ):
     if Role(ctx.user.role) not in ADMIN_ROLES:
         raise PermissionDeniedError("Only admins can create inventory")
@@ -59,7 +59,7 @@ def create_project(
 @router.post("/compare")
 def compare(
     body: CompareRequest, ctx=Depends(require("properties", "read")),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db, scope="function"),
 ):
     units = service.compare_units(db, ctx, body.unit_ids)
     return {"data": [UnitOut.model_validate(u).model_dump() for u in units]}
@@ -68,7 +68,7 @@ def compare(
 @router.get("/customer/{customer_id}")
 def customer_properties(
     customer_id: str, ctx=Depends(require("customers", "read")),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db, scope="function"),
 ):
     from app.modules.customers.service import get_customer_scoped
 
@@ -81,7 +81,7 @@ def customer_properties(
 
 @router.get("/{unit_id}")
 def get_unit(
-    unit_id: str, ctx=Depends(require("properties", "read")), db: Session = Depends(get_db)
+    unit_id: str, ctx=Depends(require("properties", "read")), db: Session = Depends(get_db, scope="function")
 ):
     unit = service.get_unit_or_404(db, ctx.user.tenant_id, unit_id)
     return {"data": UnitOut.model_validate(unit).model_dump()}
@@ -92,7 +92,7 @@ def _link_endpoint(relation: str):
         unit_id: str,
         body: LinkRequest,
         ctx=Depends(require("properties", "update")),
-        db: Session = Depends(get_db),
+        db: Session = Depends(get_db, scope="function"),
     ):
         link = service.link_customer_property(
             db, ctx, unit_id=unit_id, customer_id=body.customer_id,
@@ -110,7 +110,7 @@ router.post("/{unit_id}/attach", status_code=201)(_link_endpoint("attached"))
 
 @router.delete("/links/{link_id}")
 def unlink(
-    link_id: str, ctx=Depends(require("properties", "update")), db: Session = Depends(get_db)
+    link_id: str, ctx=Depends(require("properties", "update")), db: Session = Depends(get_db, scope="function")
 ):
     service.unlink_customer_property(db, ctx, link_id)
     return {"data": {"message": "Removed"}}

@@ -41,7 +41,7 @@ def list_leads(
     limit: int = Query(default=25, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
     ctx=Depends(require("leads", "read")),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db, scope="function"),
 ):
     query = service.scoped_query(db, ctx)
     if stage:
@@ -74,7 +74,7 @@ def list_leads(
 
 @router.post("", status_code=status.HTTP_201_CREATED)
 def create_lead(
-    body: LeadCreate, ctx=Depends(require("leads", "create")), db: Session = Depends(get_db)
+    body: LeadCreate, ctx=Depends(require("leads", "create")), db: Session = Depends(get_db, scope="function")
 ):
     data = body.model_dump(exclude={"force"})
     lead = service.create_lead(db, ctx, data, force=body.force)
@@ -85,7 +85,7 @@ def create_lead(
 def check_duplicates(
     body: DuplicateCheckRequest,
     ctx=Depends(require("leads", "read")),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db, scope="function"),
 ):
     matches = service.find_duplicates(
         db, ctx.user.tenant_id, phone=body.phone, email=body.email, full_name=body.full_name
@@ -95,7 +95,7 @@ def check_duplicates(
 
 @router.post("/import")
 async def import_leads(
-    file: UploadFile, ctx=Depends(require("leads", "create")), db: Session = Depends(get_db)
+    file: UploadFile, ctx=Depends(require("leads", "create")), db: Session = Depends(get_db, scope="function")
 ):
     if not (file.filename or "").lower().endswith(".csv"):
         raise AppError("Only .csv files are supported", code="unsupported_file")
@@ -115,7 +115,7 @@ async def import_leads(
 
 
 @router.get("/export")
-def export_leads(ctx=Depends(require("leads", "export")), db: Session = Depends(get_db)):
+def export_leads(ctx=Depends(require("leads", "export")), db: Session = Depends(get_db, scope="function")):
     csv_text = service.export_csv(db, ctx)
     return PlainTextResponse(
         csv_text,
@@ -125,7 +125,7 @@ def export_leads(ctx=Depends(require("leads", "export")), db: Session = Depends(
 
 
 @router.get("/{lead_id}")
-def get_lead(lead_id: str, ctx=Depends(require("leads", "read")), db: Session = Depends(get_db)):
+def get_lead(lead_id: str, ctx=Depends(require("leads", "read")), db: Session = Depends(get_db, scope="function")):
     lead = service.get_lead_scoped(db, ctx, lead_id)
     return {"data": LeadDetailOut.model_validate(lead).model_dump()}
 
@@ -135,7 +135,7 @@ def update_lead(
     lead_id: str,
     body: LeadUpdate,
     ctx=Depends(require("leads", "update")),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db, scope="function"),
 ):
     lead = service.update_lead(db, ctx, lead_id, body.model_dump(exclude_unset=True))
     return {"data": LeadOut.model_validate(lead).model_dump()}
@@ -143,7 +143,7 @@ def update_lead(
 
 @router.delete("/{lead_id}")
 def delete_lead(
-    lead_id: str, ctx=Depends(require("leads", "delete")), db: Session = Depends(get_db)
+    lead_id: str, ctx=Depends(require("leads", "delete")), db: Session = Depends(get_db, scope="function")
 ):
     service.delete_lead(db, ctx, lead_id)
     return {"data": {"message": "Lead deleted"}}
@@ -154,7 +154,7 @@ def assign_lead(
     lead_id: str,
     body: AssignRequest,
     ctx=Depends(require("leads", "assign")),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db, scope="function"),
 ):
     lead = service.assign_lead(db, ctx, lead_id, body.user_id)
     return {"data": LeadOut.model_validate(lead).model_dump()}
@@ -165,7 +165,7 @@ def add_note(
     lead_id: str,
     body: NoteCreate,
     ctx=Depends(require("leads", "update")),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db, scope="function"),
 ):
     note = service.add_note(db, ctx, lead_id, body.body)
     return {"data": NoteOut.model_validate(note).model_dump()}
@@ -176,7 +176,7 @@ def add_tag(
     lead_id: str,
     body: TagRequest,
     ctx=Depends(require("leads", "update")),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db, scope="function"),
 ):
     lead = service.add_tag(db, ctx, lead_id, body.name, body.color)
     return {"data": LeadOut.model_validate(lead).model_dump()}
@@ -187,7 +187,7 @@ def remove_tag(
     lead_id: str,
     tag_id: str,
     ctx=Depends(require("leads", "update")),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db, scope="function"),
 ):
     lead = service.remove_tag(db, ctx, lead_id, tag_id)
     return {"data": LeadOut.model_validate(lead).model_dump()}
@@ -195,7 +195,7 @@ def remove_tag(
 
 @router.get("/{lead_id}/timeline")
 def lead_timeline(
-    lead_id: str, ctx=Depends(require("leads", "read")), db: Session = Depends(get_db)
+    lead_id: str, ctx=Depends(require("leads", "read")), db: Session = Depends(get_db, scope="function")
 ):
     rows = service.get_timeline(db, ctx, lead_id)
     return {"data": [ActivityOut.model_validate(a).model_dump() for a in rows]}
@@ -206,7 +206,7 @@ def schedule_site_visit(
     lead_id: str,
     body: ScheduleSiteVisitRequest,
     ctx=Depends(require("leads", "update")),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db, scope="function"),
 ):
     from app.modules.calendar.router import EventOut
 
@@ -227,7 +227,7 @@ def schedule_site_visit(
 
 
 @pipeline_router.get("/board")
-def board(ctx=Depends(require("leads", "read")), db: Session = Depends(get_db)):
+def board(ctx=Depends(require("leads", "read")), db: Session = Depends(get_db, scope="function")):
     columns = service.pipeline_board(db, ctx)
     return {
         "data": {
@@ -243,7 +243,7 @@ def move_stage(
     lead_id: str,
     body: StageChangeRequest,
     ctx=Depends(require("leads", "update")),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db, scope="function"),
 ):
     lead = service.change_stage(
         db, ctx, lead_id, body.stage, body.lost_reason, reopen=body.reopen
@@ -253,7 +253,7 @@ def move_stage(
 
 @pipeline_router.get("/leads/{lead_id}/stage-history")
 def stage_history(
-    lead_id: str, ctx=Depends(require("leads", "read")), db: Session = Depends(get_db)
+    lead_id: str, ctx=Depends(require("leads", "read")), db: Session = Depends(get_db, scope="function")
 ):
     rows = service.get_stage_history(db, ctx, lead_id)
     return {"data": [LeadStageEventOut.model_validate(r).model_dump() for r in rows]}

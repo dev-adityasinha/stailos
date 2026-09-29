@@ -69,7 +69,7 @@ def _lead_query(db: Session, ctx):
 
 
 @router.get("/overview")
-def overview(ctx=Depends(require("analytics", "read")), db: Session = Depends(get_db)):
+def overview(ctx=Depends(require("analytics", "read")), db: Session = Depends(get_db, scope="function")):
     leads = db.scalars(_lead_query(db, ctx)).all()
     total_leads = len(leads)
     active_leads = sum(1 for l in leads if l.stage not in CLOSED_STAGES)
@@ -153,7 +153,7 @@ def overview(ctx=Depends(require("analytics", "read")), db: Session = Depends(ge
 
 
 @router.get("/funnel")
-def funnel(ctx=Depends(require("analytics", "read")), db: Session = Depends(get_db)):
+def funnel(ctx=Depends(require("analytics", "read")), db: Session = Depends(get_db, scope="function")):
     leads = db.scalars(_lead_query(db, ctx)).all()
     counts = {stage: 0 for stage in PIPELINE_ORDER}
     for lead in leads:
@@ -163,7 +163,7 @@ def funnel(ctx=Depends(require("analytics", "read")), db: Session = Depends(get_
 
 @router.get("/revenue")
 def revenue_series(
-    months: int = 6, ctx=Depends(require("analytics", "read")), db: Session = Depends(get_db)
+    months: int = 6, ctx=Depends(require("analytics", "read")), db: Session = Depends(get_db, scope="function")
 ):
     ids = _visible_user_ids(db, ctx)
     booking_q = select(Booking.id).where(Booking.tenant_id == ctx.user.tenant_id)
@@ -187,7 +187,7 @@ def revenue_series(
 
 @router.get("/team")
 def team_performance(
-    ctx=Depends(require("analytics", "read")), db: Session = Depends(get_db)
+    ctx=Depends(require("analytics", "read")), db: Session = Depends(get_db, scope="function")
 ):
     ids = _visible_user_ids(db, ctx)
     user_q = select(User).where(User.tenant_id == ctx.user.tenant_id, User.is_active.is_(True))
@@ -234,7 +234,7 @@ def team_performance(
 
 @router.get("/sources")
 def source_performance(
-    ctx=Depends(require("analytics", "read")), db: Session = Depends(get_db)
+    ctx=Depends(require("analytics", "read")), db: Session = Depends(get_db, scope="function")
 ):
     leads = db.scalars(_lead_query(db, ctx)).all()
     by_source: dict[str, dict] = {}

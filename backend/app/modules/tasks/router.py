@@ -139,7 +139,7 @@ def list_tasks(
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
     ctx=Depends(require("tasks", "read")),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db, scope="function"),
 ):
     q = _scoped(db, ctx)
     if status_filter:
@@ -169,7 +169,7 @@ def list_tasks(
 
 @router.post("", status_code=status.HTTP_201_CREATED)
 def create_task(
-    body: TaskCreate, ctx=Depends(require("tasks", "create")), db: Session = Depends(get_db)
+    body: TaskCreate, ctx=Depends(require("tasks", "create")), db: Session = Depends(get_db, scope="function")
 ):
     task = CrmTask(
         tenant_id=ctx.user.tenant_id,
@@ -193,7 +193,7 @@ def create_task(
 
 
 @router.get("/{task_id}")
-def get_task(task_id: str, ctx=Depends(require("tasks", "read")), db: Session = Depends(get_db)):
+def get_task(task_id: str, ctx=Depends(require("tasks", "read")), db: Session = Depends(get_db, scope="function")):
     return {"data": TaskOut.model_validate(_get(db, ctx, task_id)).model_dump()}
 
 
@@ -202,7 +202,7 @@ def update_task(
     task_id: str,
     body: TaskUpdate,
     ctx=Depends(require("tasks", "update")),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db, scope="function"),
 ):
     task = _get(db, ctx, task_id)
     changes = body.model_dump(exclude_unset=True)
@@ -237,7 +237,7 @@ def update_task(
 
 @router.delete("/{task_id}")
 def delete_task(
-    task_id: str, ctx=Depends(require("tasks", "delete")), db: Session = Depends(get_db)
+    task_id: str, ctx=Depends(require("tasks", "delete")), db: Session = Depends(get_db, scope="function")
 ):
     task = _get(db, ctx, task_id)
     task.deleted_at = utcnow().replace(tzinfo=None)
@@ -249,7 +249,7 @@ def add_comment(
     task_id: str,
     body: CommentCreate,
     ctx=Depends(require("tasks", "update")),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db, scope="function"),
 ):
     task = _get(db, ctx, task_id)
     comment = TaskComment(
@@ -266,7 +266,7 @@ async def add_attachment(
     task_id: str,
     file: UploadFile,
     ctx=Depends(require("tasks", "update")),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db, scope="function"),
 ):
     task = _get(db, ctx, task_id)
     content = await file.read()

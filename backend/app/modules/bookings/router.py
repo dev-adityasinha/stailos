@@ -28,7 +28,7 @@ def list_bookings(
     limit: int = Query(default=25, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
     ctx=Depends(require("bookings", "read")),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db, scope="function"),
 ):
     query = service.scoped_query(db, ctx)
     if stage:
@@ -51,7 +51,7 @@ def list_bookings(
 @router.post("", status_code=status.HTTP_201_CREATED)
 def create_booking(
     body: BookingCreate, ctx=Depends(require("bookings", "create")),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db, scope="function"),
 ):
     booking = service.create_booking(db, ctx, body.model_dump())
     return {"data": BookingDetailOut.model_validate(booking).model_dump()}
@@ -59,7 +59,7 @@ def create_booking(
 
 @router.get("/{booking_id}")
 def get_booking(
-    booking_id: str, ctx=Depends(require("bookings", "read")), db: Session = Depends(get_db)
+    booking_id: str, ctx=Depends(require("bookings", "read")), db: Session = Depends(get_db, scope="function")
 ):
     booking = service.get_booking_scoped(db, ctx, booking_id)
     return {"data": BookingDetailOut.model_validate(booking).model_dump()}
@@ -70,7 +70,7 @@ def advance_stage(
     booking_id: str,
     body: AdvanceStageRequest,
     ctx=Depends(require("bookings", "update")),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db, scope="function"),
 ):
     booking = service.advance_stage(db, ctx, booking_id, body.note)
     return {"data": BookingDetailOut.model_validate(booking).model_dump()}
@@ -81,7 +81,7 @@ def record_payment(
     booking_id: str,
     body: PaymentCreate,
     ctx=Depends(require("bookings", "update")),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db, scope="function"),
 ):
     payment = service.record_payment(db, ctx, booking_id, body.model_dump())
     return {"data": PaymentOut.model_validate(payment).model_dump()}
@@ -89,7 +89,7 @@ def record_payment(
 
 @router.get("/{booking_id}/payments")
 def list_payments(
-    booking_id: str, ctx=Depends(require("payments", "read")), db: Session = Depends(get_db)
+    booking_id: str, ctx=Depends(require("payments", "read")), db: Session = Depends(get_db, scope="function")
 ):
     booking = service.get_booking_scoped(db, ctx, booking_id)
     return {"data": [PaymentOut.model_validate(p).model_dump() for p in booking.payments]}
@@ -100,7 +100,7 @@ def cancel_booking(
     booking_id: str,
     body: CancelRequest,
     ctx=Depends(require("bookings", "update")),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db, scope="function"),
 ):
     booking = service.cancel_booking(db, ctx, booking_id, body.reason)
     return {"data": BookingDetailOut.model_validate(booking).model_dump()}

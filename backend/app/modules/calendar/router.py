@@ -97,7 +97,7 @@ def list_events(
     type_filter: EventType | None = Query(default=None, alias="type"),
     team: bool = False,
     ctx=Depends(require("calendar", "read")),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db, scope="function"),
 ):
     q = _visible_query(db, ctx)
     if not team:  # personal view: only own/attending regardless of role scope
@@ -121,7 +121,7 @@ def list_events(
 @router.post("", status_code=status.HTTP_201_CREATED)
 def create_event(
     body: EventCreate, ctx=Depends(require("calendar", "create")),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db, scope="function"),
 ):
     from app.modules.auth.models import User
 
@@ -163,7 +163,7 @@ def update_event(
     event_id: str,
     body: EventUpdate,
     ctx=Depends(require("calendar", "update")),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db, scope="function"),
 ):
     from app.modules.auth.models import User
 
@@ -190,7 +190,7 @@ def update_event(
 
 @router.delete("/{event_id}")
 def delete_event(
-    event_id: str, ctx=Depends(require("calendar", "delete")), db: Session = Depends(get_db)
+    event_id: str, ctx=Depends(require("calendar", "delete")), db: Session = Depends(get_db, scope="function")
 ):
     event = _get_editable(db, ctx, event_id)
     db.delete(event)

@@ -6,17 +6,30 @@ export function uniqueEmail(tag: string) {
   return `e2e-${tag}-${Date.now()}-${Math.floor(Math.random() * 1e6)}@example.com`;
 }
 
+/** Opens /register, fills the form and submits it. */
+export async function submitRegistration(
+  page: Page, email: string, name: string, company: string
+) {
+  await page.goto("/register");
+  // WebKit can finish hydrating after the first fill and reset the controlled
+  // inputs, which leaves "Full name" empty and the submit silently blocked.
+  // Refill until every value sticks.
+  await expect(async () => {
+    await page.getByLabel("Full name").fill(name);
+    await page.getByLabel("Company name").fill(company);
+    await page.getByLabel("Email").fill(email);
+    await page.locator('input[type="password"]').fill(PASSWORD);
+    await expect(page.getByLabel("Full name")).toHaveValue(name, { timeout: 500 });
+  }).toPass();
+  await page.getByRole("button", { name: /create account/i }).click();
+}
+
 /** Registers a fresh workspace admin and logs in. Fresh admins land on the
  *  onboarding wizard by design; pass skipOnboarding=false to stay there. */
 export async function registerAndLogin(
   page: Page, email: string, name: string, { skipOnboarding = true } = {}
 ) {
-  await page.goto("/register");
-  await page.getByLabel("Full name").fill(name);
-  await page.getByLabel("Company name").fill(`${name} Realty`);
-  await page.getByLabel("Email").fill(email);
-  await page.locator('input[type="password"]').fill(PASSWORD);
-  await page.getByRole("button", { name: /create account/i }).click();
+  await submitRegistration(page, email, name, `${name} Realty`);
   await expect(page).toHaveURL(/\/login/);
 
   await page.getByLabel("Email").fill(email);

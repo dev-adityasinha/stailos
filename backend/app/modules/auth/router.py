@@ -297,7 +297,7 @@ def deactivate_user(
 
 @api_keys_router.post("", status_code=status.HTTP_201_CREATED)
 def create_api_key(
-    body: ApiKeyCreate, user: User = Depends(get_current_user), db: Session = Depends(get_db)
+    body: ApiKeyCreate, user: User = Depends(get_current_user), db: Session = Depends(get_db, scope="function")
 ):
     """Issue a key. The key itself appears in this response and never again."""
     if Role(user.role) not in ADMIN_ROLES:
@@ -308,7 +308,7 @@ def create_api_key(
 
 
 @api_keys_router.get("")
-def list_api_keys(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def list_api_keys(user: User = Depends(get_current_user), db: Session = Depends(get_db, scope="function")):
     """Keys in your workspace. Never the key material, only enough to tell them apart."""
     if Role(user.role) not in ADMIN_ROLES:
         raise PermissionDeniedError("Only admins can view API keys")
@@ -318,7 +318,7 @@ def list_api_keys(user: User = Depends(get_current_user), db: Session = Depends(
 
 @api_keys_router.delete("/{key_id}")
 def revoke_api_key(
-    key_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)
+    key_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db, scope="function")
 ):
     """Revoke a key. Anything using it stops working on its next request."""
     if Role(user.role) not in ADMIN_ROLES:

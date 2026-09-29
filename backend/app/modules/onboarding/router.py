@@ -28,7 +28,7 @@ def list_steps(user: User = Depends(require_admin)):
 
 @router.get("/state")
 def get_onboarding_state(
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db, scope="function"),
     user: User = Depends(require_admin),
 ):
     tenant = service.get_onboarding_state(db, user.tenant_id)
@@ -38,7 +38,7 @@ def get_onboarding_state(
 @router.patch("/step")
 def update_step(
     body: OnboardingStepUpdate,
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db, scope="function"),
     user: User = Depends(require_admin),
 ):
     tenant = service.update_onboarding_step(db, user, str(body.step_id), body.data)
@@ -47,7 +47,7 @@ def update_step(
 
 @router.post("/complete")
 def complete_onboarding(
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db, scope="function"),
     user: User = Depends(require_admin),
 ):
     # Pass the caller: invites must be attributed to a real admin in THIS
@@ -63,7 +63,7 @@ async def upload_file(
     file: UploadFile = File(...),
     category: str = Form(default="other"),
     title: str | None = Form(default=None),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db, scope="function"),
     user: User = Depends(require_admin),
 ):
     """Store a workspace asset (logo, brochure, RERA certificate, AI knowledge base…).
@@ -83,7 +83,7 @@ async def upload_file(
 
 @router.get("/documents")
 def list_onboarding_documents(
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db, scope="function"),
     user: User = Depends(require_admin),
 ):
     """What has actually been uploaded — so the wizard can show it on revisit."""
@@ -93,7 +93,7 @@ def list_onboarding_documents(
 @router.delete("/documents/{document_id}", status_code=204)
 def delete_onboarding_document(
     document_id: str,
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db, scope="function"),
     user: User = Depends(require_admin),
 ):
     service.delete_onboarding_asset(db, user, document_id)

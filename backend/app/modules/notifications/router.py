@@ -32,7 +32,7 @@ def list_notifications(
     limit: int = Query(default=30, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
     user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db, scope="function"),
 ):
     generate_due_reminders(db, user)  # lazy follow-up reminder generation
     db.flush()  # autoflush is off; make fresh reminders visible to this query
@@ -58,7 +58,7 @@ def list_notifications(
 def mark_read(
     notification_id: str,
     user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db, scope="function"),
 ):
     n = db.get(Notification, notification_id)
     if n is None or n.user_id != user.id:
@@ -68,7 +68,7 @@ def mark_read(
 
 
 @router.post("/read-all")
-def read_all(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def read_all(user: User = Depends(get_current_user), db: Session = Depends(get_db, scope="function")):
     rows = db.scalars(
         select(Notification).where(
             Notification.user_id == user.id, Notification.read.is_(False)

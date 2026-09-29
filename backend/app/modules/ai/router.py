@@ -35,7 +35,7 @@ class ChatRequest(BaseModel):
 def catalog(
     response: Response,
     ctx=Depends(require("ai", "read")),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db, scope="function"),
 ):
     """What this workspace can actually run — not just what the code implements.
 
@@ -76,7 +76,7 @@ def catalog(
 def chat(
     body: ChatRequest,
     ctx=Depends(require("ai", "create")),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db, scope="function"),
 ):
     """One conversational turn: extract requirements and reply with the gap."""
     return {"data": service.chat(
@@ -89,7 +89,7 @@ def chat(
 def orchestrate(
     body: ChatRequest,
     ctx=Depends(require("ai", "create")),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db, scope="function"),
 ):
     """Run the full pipeline: extract → match inventory → grade → write back."""
     return {"data": service.orchestrate(db, ctx, message=body.message, lead_id=body.lead_id)}
@@ -100,7 +100,7 @@ def run_widget(
     widget: str,
     body: dict = Body(default={}),
     ctx=Depends(require("ai", "create")),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db, scope="function"),
 ):
     return {"data": service.run_widget(db, ctx, widget, body)}
 
@@ -110,7 +110,7 @@ def run_component(
     component: str,
     body: dict = Body(default={}),
     ctx=Depends(require("ai", "create")),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db, scope="function"),
 ):
     return {"data": service.run_component(db, ctx, component, body)}
 
@@ -120,7 +120,7 @@ def insights(
     entity_type: str,
     entity_id: str,
     ctx=Depends(require("ai", "read")),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db, scope="function"),
 ):
     rows = service.list_insights(db, ctx, entity_type, entity_id)
     return {"data": [InsightOut.model_validate(i).model_dump() for i in rows]}
@@ -134,7 +134,7 @@ def entity_timeline(
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
     ctx=Depends(require("ai", "read")),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db, scope="function"),
 ):
     """Timeline intelligence (Task 15): chronological events with type filtering.
     Scope enforcement mirrors the entity's own module."""
