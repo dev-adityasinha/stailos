@@ -104,3 +104,17 @@ def generate_opaque_token() -> str:
 
 def hash_opaque_token(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
+
+
+# API keys carry this prefix so a credential can be told apart from a JWT
+# without parsing it. JWTs always begin "eyJ"; nothing else here starts "pk_".
+API_KEY_PREFIX = "pk_"
+
+
+def generate_api_key() -> str:
+    """A long-lived key for machine access. Only its hash is stored."""
+    return f"{API_KEY_PREFIX}{secrets.token_urlsafe(32)}"
+
+
+def is_api_key(credential: str) -> bool:
+    return credential.startswith(API_KEY_PREFIX)

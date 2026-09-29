@@ -10,14 +10,22 @@ from sqlalchemy.orm import Session
 
 from app.core.errors import AuthError, PermissionDeniedError
 from app.core.permissions import MANAGER_ROLES, Role, Scope, get_scope
-from app.core.security import decode_token
-from app.db.base import SessionLocal
-from app.modules.auth.models import User
+from app.core.security import decode_token, hash_opaque_token, is_api_key
+from app.db.base import SessionLocal, utcnow
+from app.modules.auth.models import ApiKey, User
 
 _bearer = HTTPBearer(auto_error=False)
 
 
 def get_db() -> Generator[Session, None, None]:
+    """Request-wide session, committed when the endpoint returns.
+
+    Always depend on it as ``Depends(get_db, scope="function")``. With the
+    default request scope FastAPI runs the code after ``yield`` only once the
+    response has been sent, so the client could read stale data (or be told a
+    write succeeded whose commit then failed). Every use must share the same
+    scope, or one request gets two separate sessions.
+    """
     db = SessionLocal()
     try:
         yield db
@@ -29,12 +37,37 @@ def get_db() -> Generator[Session, None, None]:
         db.close()
 
 
+def _user_from_api_key(db: Session, key: str) -> User:
+    """Resolve an API key to the user it acts as.
+
+    Deliberately resolves to a User rather than to some parallel "machine
+    identity". Every rule in permissions.py, every tenant filter and every
+    scoped query then applies unchanged, with no second authorization path that
+    could drift out of step with the first.
+    """
+    row = db.scalars(select(ApiKey).where(ApiKey.key_hash == hash_opaque_token(key))).first()
+    # One message for unknown and for revoked. Whoever holds a key that does not
+    # work cannot act on the difference between them.
+    if row is None or row.revoked_at is not None:
+        raise AuthError("Invalid API key", code="invalid_api_key")
+    user = db.get(User, row.user_id)
+    if user is None or not user.is_active:
+        raise AuthError("User inactive or not found")
+    # Best-effort: it shows on the key list so an unused key is recognisable.
+    # Never worth failing a request over.
+    row.last_used_at = utcnow()
+    return user
+
+
 def get_current_user(
     credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db, scope="function"),
 ) -> User:
     if credentials is None:
         raise AuthError("Not authenticated")
+    # Both arrive as `Authorization: Bearer ...`; the prefix says which is which.
+    if is_api_key(credentials.credentials):
+        return _user_from_api_key(db, credentials.credentials)
     try:
         payload = decode_token(credentials.credentials, "access")
     except pyjwt.ExpiredSignatureError:

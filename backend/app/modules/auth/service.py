@@ -16,6 +16,7 @@ from app.core.errors import AppError, AuthError, ConflictError, NotFoundError
 from app.core.permissions import Role
 from app.core.security import (
     create_access_token,
+    generate_api_key,
     create_token,
     decode_token,
     generate_opaque_token,
@@ -24,7 +25,7 @@ from app.core.security import (
     verify_password,
 )
 from app.db.base import new_uuid, utcnow
-from app.modules.auth.models import LoginAttempt, RefreshToken, Tenant, User, AuthExchangeCode
+from app.modules.auth.models import ApiKey, LoginAttempt, RefreshToken, Tenant, User, AuthExchangeCode
 
 AVATAR_COLORS = ["#3B82F6", "#10B981", "#8B5CF6", "#F59E0B", "#EF4444", "#06B6D4"]
 
@@ -438,3 +439,61 @@ def redeem_exchange_code(db: Session, code: str, user_agent: str | None, ip: str
     )
     db.commit()
     return user, access, refresh_plain
+
+
+# ---------------------------------------------------------------- API keys
+
+
+def create_api_key(db: Session, user: User, *, name: str) -> tuple[ApiKey, str]:
+    """Issue a key for `user`. Returns the row and the plaintext, once.
+
+    The plaintext is returned rather than stored: only its SHA-256 goes to the
+    database, the same treatment refresh tokens already get. Losing it means
+    issuing another one, which is the correct trade.
+    """
+    plain = generate_api_key()
+    row = ApiKey(
+        tenant_id=user.tenant_id,
+        user_id=user.id,
+        name=name.strip(),
+        # Enough to recognise a key in a list, far too little to use.
+        prefix=plain[:11],
+        key_hash=hash_opaque_token(plain),
+    )
+    db.add(row)
+    record_audit(
+        db, tenant_id=user.tenant_id, action="auth.api_key_created", actor_id=user.id,
+        actor_email=user.email, entity_type="api_key", entity_id=row.id,
+    )
+    db.commit()
+    return row, plain
+
+
+def list_api_keys(db: Session, user: User) -> list[ApiKey]:
+    """Every key in the caller's tenant, newest first.
+
+    Tenant-scoped rather than user-scoped: a key outlives the person who made
+    it, and an admin who cannot see a colleague's key cannot revoke it either.
+    """
+    return list(
+        db.scalars(
+            select(ApiKey)
+            .where(ApiKey.tenant_id == user.tenant_id)
+            .order_by(ApiKey.created_at.desc())
+        ).all()
+    )
+
+
+def revoke_api_key(db: Session, user: User, key_id: str) -> ApiKey:
+    """Revoke one key. Revoked rather than deleted, so the audit trail holds."""
+    row = db.get(ApiKey, key_id)
+    if row is None or row.tenant_id != user.tenant_id:
+        raise NotFoundError("API key not found")
+    if row.revoked_at is None:
+        row.revoked_at = datetime.now(timezone.utc)
+        record_audit(
+            db, tenant_id=user.tenant_id, action="auth.api_key_revoked", actor_id=user.id,
+            actor_email=user.email, entity_type="api_key", entity_id=row.id,
+        )
+        db.commit()
+    return row

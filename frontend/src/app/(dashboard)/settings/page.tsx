@@ -5,6 +5,7 @@ import { MonitorSmartphone, ShieldCheck, Trash2 } from "lucide-react";
 import { api } from "@/lib/api";
 import { ROLE_LABELS, useAuth } from "@/lib/auth";
 import { Avatar, Badge, Button, Card, PageHeader, SkeletonRows } from "@/components/ui";
+import { ApiKeysCard } from "@/components/api-keys-card";
 import { formatDateTime, timeAgo } from "@/lib/format";
 
 interface Session {
@@ -82,6 +83,8 @@ export default function SettingsPage() {
           </ul>
         )}
       </Card>
+
+      <ApiKeysCard />
     </div>
   );
 }

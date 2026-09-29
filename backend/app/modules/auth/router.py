@@ -9,6 +9,9 @@ from app.core.permissions import ADMIN_ROLES, Role
 from app.modules.auth import service
 from app.modules.auth.models import User
 from app.modules.auth.schemas import (
+    ApiKeyCreate,
+    ApiKeyCreated,
+    ApiKeyOut,
     ForgotPasswordRequest,
     LoginRequest,
     RefreshRequest,
@@ -24,6 +27,7 @@ from app.modules.auth.schemas import (
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 users_router = APIRouter(prefix="/users", tags=["users"])
+api_keys_router = APIRouter(prefix="/api-keys", tags=["api-keys"])
 
 REFRESH_COOKIE = "pappu_refresh"
 
@@ -54,6 +58,9 @@ def _user_out_with_tenant(db: Session, user: User) -> UserOut:
     out = UserOut.model_validate(user)
     tenant = db.get(Tenant, user.tenant_id)
     if tenant:
+        # The id as well as the name: another system connecting to this workspace
+        # needs something stable to key on, and a workspace can be renamed.
+        out.tenant_id = tenant.id
         out.tenant_name = tenant.name
         out.onboarding_completed = tenant.onboarding_completed
     return out
@@ -69,7 +76,7 @@ def _token_response(db: Session, user: User, access: str) -> TokenResponse:
 
 
 @router.post("/register", status_code=status.HTTP_201_CREATED)
-def register(body: RegisterRequest, request: Request, db: Session = Depends(get_db)):
+def register(body: RegisterRequest, request: Request, db: Session = Depends(get_db, scope="function")):
     user = service.register_user(
         db,
         email=body.email,
@@ -85,7 +92,7 @@ def register(body: RegisterRequest, request: Request, db: Session = Depends(get_
 
 @router.post("/login")
 def login(
-    body: LoginRequest, request: Request, response: Response, db: Session = Depends(get_db)
+    body: LoginRequest, request: Request, response: Response, db: Session = Depends(get_db, scope="function")
 ):
     user, access, refresh = service.login(
         db,
@@ -103,7 +110,7 @@ def refresh(
     request: Request,
     response: Response,
     body: RefreshRequest | None = None,
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db, scope="function"),
 ):
     token = (body.refresh_token if body else None) or request.cookies.get(REFRESH_COOKIE)
     if not token:
@@ -125,7 +132,7 @@ def logout(
     request: Request,
     response: Response,
     body: RefreshRequest | None = None,
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db, scope="function"),
 ):
     token = (body.refresh_token if body else None) or request.cookies.get(REFRESH_COOKIE)
     service.logout(db, refresh_token_plain=token, user=None)
@@ -134,13 +141,13 @@ def logout(
 
 
 @router.post("/password/forgot")
-def forgot_password(body: ForgotPasswordRequest, db: Session = Depends(get_db)):
+def forgot_password(body: ForgotPasswordRequest, db: Session = Depends(get_db, scope="function")):
     service.forgot_password(db, email=body.email)
     return {"data": {"message": "If the account exists, a reset link has been sent."}}
 
 
 @router.post("/password/reset")
-def reset_password(body: ResetPasswordRequest, request: Request, db: Session = Depends(get_db)):
+def reset_password(body: ResetPasswordRequest, request: Request, db: Session = Depends(get_db, scope="function")):
     service.reset_password(
         db, token=body.token, new_password=body.new_password, ip=get_client_ip(request)
     )
@@ -148,20 +155,20 @@ def reset_password(body: ResetPasswordRequest, request: Request, db: Session = D
 
 
 @router.post("/verify-email")
-def verify_email(body: VerifyEmailRequest, db: Session = Depends(get_db)):
+def verify_email(body: VerifyEmailRequest, db: Session = Depends(get_db, scope="function")):
     user = service.verify_email(db, token=body.token)
     return {"data": {"message": "Email verified", "email": user.email}}
 
 from app.modules.auth.schemas import ExchangeIssueResponse, ExchangeRedeemRequest
 
 @router.post("/exchange/issue")
-def issue_exchange_code(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def issue_exchange_code(user: User = Depends(get_current_user), db: Session = Depends(get_db, scope="function")):
     code = service.issue_exchange_code(db, user)
     return {"data": ExchangeIssueResponse(code=code).model_dump()}
 
 @router.post("/exchange/redeem")
 def redeem_exchange_code(
-    body: ExchangeRedeemRequest, request: Request, response: Response, db: Session = Depends(get_db)
+    body: ExchangeRedeemRequest, request: Request, response: Response, db: Session = Depends(get_db, scope="function")
 ):
     user, access, refresh = service.redeem_exchange_code(
         db,
@@ -173,19 +180,19 @@ def redeem_exchange_code(
     return {"data": _token_response(db, user, access).model_dump(), "refresh_token": refresh}
 
 @router.get("/me")
-def me(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def me(user: User = Depends(get_current_user), db: Session = Depends(get_db, scope="function")):
     return {"data": _user_out_with_tenant(db, user).model_dump()}
 
 
 @router.get("/sessions")
-def sessions(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def sessions(user: User = Depends(get_current_user), db: Session = Depends(get_db, scope="function")):
     rows = service.list_sessions(db, user)
     return {"data": [SessionOut.model_validate(r).model_dump() for r in rows]}
 
 
 @router.delete("/sessions/{session_id}")
 def revoke_session(
-    session_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)
+    session_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db, scope="function")
 ):
     service.revoke_session(db, user, session_id)
     return {"data": {"message": "Session revoked"}}
@@ -203,7 +210,7 @@ def _get_user_scoped(db: Session, ctx, user_id: str) -> User:
 
 
 @users_router.get("")
-def list_users(ctx=Depends(require("users", "read")), db: Session = Depends(get_db)):
+def list_users(ctx=Depends(require("users", "read")), db: Session = Depends(get_db, scope="function")):
     from app.core.deps import team_user_ids
     from app.core.permissions import Scope
 
@@ -219,7 +226,7 @@ def create_user(
     body: RegisterRequest,
     request: Request,
     ctx=Depends(require("users", "create")),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db, scope="function"),
 ):
     user = service.register_user(
         db,
@@ -236,7 +243,7 @@ def create_user(
 
 
 @users_router.get("/{user_id}")
-def get_user(user_id: str, ctx=Depends(require("users", "read")), db: Session = Depends(get_db)):
+def get_user(user_id: str, ctx=Depends(require("users", "read")), db: Session = Depends(get_db, scope="function")):
     user = _get_user_scoped(db, ctx, user_id)
     return {"data": UserOut.model_validate(user).model_dump()}
 
@@ -246,7 +253,7 @@ def update_user(
     user_id: str,
     body: UserUpdate,
     ctx=Depends(require("users", "update")),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db, scope="function"),
 ):
     user = _get_user_scoped(db, ctx, user_id)
     for field, value in body.model_dump(exclude_unset=True).items():
@@ -259,7 +266,7 @@ def update_role(
     user_id: str,
     body: RoleUpdate,
     ctx=Depends(require("users", "update")),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db, scope="function"),
 ):
     if Role(ctx.user.role) not in ADMIN_ROLES:
         raise PermissionDeniedError("Only admins can change roles")
@@ -272,10 +279,49 @@ def update_role(
 
 @users_router.delete("/{user_id}")
 def deactivate_user(
-    user_id: str, ctx=Depends(require("users", "delete")), db: Session = Depends(get_db)
+    user_id: str, ctx=Depends(require("users", "delete")), db: Session = Depends(get_db, scope="function")
 ):
     user = _get_user_scoped(db, ctx, user_id)
     if user.id == ctx.user.id:
         raise PermissionDeniedError("You cannot deactivate your own account")
     user.is_active = False
     return {"data": {"message": "User deactivated"}}
+
+
+# ---------------------------------------------------------------- API keys
+#
+# A long-lived credential so another system can call this API without holding a
+# password or nursing a refresh token. Admin-only to create or revoke: a key
+# acts as its user, so issuing one is handing out that user's access.
+
+
+@api_keys_router.post("", status_code=status.HTTP_201_CREATED)
+def create_api_key(
+    body: ApiKeyCreate, user: User = Depends(get_current_user), db: Session = Depends(get_db)
+):
+    """Issue a key. The key itself appears in this response and never again."""
+    if Role(user.role) not in ADMIN_ROLES:
+        raise PermissionDeniedError("Only admins can create API keys")
+    row, plain = service.create_api_key(db, user, name=body.name)
+    out = ApiKeyOut.model_validate(row).model_dump()
+    return {"data": ApiKeyCreated(**out, key=plain).model_dump()}
+
+
+@api_keys_router.get("")
+def list_api_keys(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Keys in your workspace. Never the key material, only enough to tell them apart."""
+    if Role(user.role) not in ADMIN_ROLES:
+        raise PermissionDeniedError("Only admins can view API keys")
+    rows = service.list_api_keys(db, user)
+    return {"data": [ApiKeyOut.model_validate(r).model_dump() for r in rows]}
+
+
+@api_keys_router.delete("/{key_id}")
+def revoke_api_key(
+    key_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)
+):
+    """Revoke a key. Anything using it stops working on its next request."""
+    if Role(user.role) not in ADMIN_ROLES:
+        raise PermissionDeniedError("Only admins can revoke API keys")
+    row = service.revoke_api_key(db, user, key_id)
+    return {"data": ApiKeyOut.model_validate(row).model_dump()}

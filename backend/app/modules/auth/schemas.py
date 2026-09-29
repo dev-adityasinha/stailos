@@ -77,6 +77,7 @@ class UserOut(BaseModel):
     # Tenant context, populated only on auth responses (me/login/refresh/
     # exchange) — optional so plain UserOut.model_validate(user) call sites
     # (user lists etc.) keep working without a tenant lookup.
+    tenant_id: str | None = None
     tenant_name: str | None = None
     onboarding_completed: bool | None = None
 
@@ -108,3 +109,27 @@ class ExchangeRedeemRequest(BaseModel):
 
 class ExchangeIssueResponse(BaseModel):
     code: str
+
+
+class ApiKeyCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+
+
+class ApiKeyOut(BaseModel):
+    """A key as it can safely be listed: never the key itself."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    name: str
+    prefix: str
+    last_used_at: datetime | None
+    revoked_at: datetime | None
+    created_at: datetime
+
+
+class ApiKeyCreated(ApiKeyOut):
+    """The one response that carries the key. It is not stored and cannot be
+    shown again, which the UI has to say plainly at this moment."""
+
+    key: str

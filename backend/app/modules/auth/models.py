@@ -1,4 +1,5 @@
-"""Auth domain: tenants, users, refresh-token sessions, login attempts, email outbox."""
+"""Auth domain: tenants, users, refresh-token sessions, API keys, login attempts,
+email outbox."""
 from datetime import datetime
 
 from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, String
@@ -58,6 +59,38 @@ class RefreshToken(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     replaced_by: Mapped[str | None] = mapped_column(String(36), nullable=True)
     user_agent: Mapped[str | None] = mapped_column(String(400), nullable=True)
     ip_address: Mapped[str | None] = mapped_column(String(64), nullable=True)
+
+    user: Mapped[User] = relationship()
+
+
+class ApiKey(Base, UUIDPrimaryKeyMixin, TimestampMixin):
+    """A long-lived credential for another system to call this API as a user.
+
+    Refresh tokens cannot do this job. They expire in seven days, they rotate on
+    every use, and reuse revokes the whole family — correct for a browser
+    session, fatal for a server that might retry a request or run two at once.
+    An API key is stable: issue it, paste it into the other system, revoke it
+    when done.
+
+    Only the SHA-256 of the key is stored, the same way refresh tokens are held,
+    so a copy of this table is not a set of working credentials. The key itself
+    is shown exactly once, at creation.
+
+    It authenticates *as* its user, which is the whole point: role, tenant and
+    every scoping rule in permissions.py keep applying with no second code path
+    to keep in step.
+    """
+
+    __tablename__ = "api_keys"
+
+    tenant_id: Mapped[str] = mapped_column(String(36), index=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    name: Mapped[str] = mapped_column(String(120))
+    # Leading characters, kept so the list can identify a key without holding it.
+    prefix: Mapped[str] = mapped_column(String(16))
+    key_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     user: Mapped[User] = relationship()
 

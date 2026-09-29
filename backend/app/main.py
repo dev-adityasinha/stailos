@@ -143,6 +143,7 @@ def create_app() -> FastAPI:
     register_error_handlers(app)
 
     from app.modules.auth.audit_router import router as audit_router
+    from app.modules.auth.router import api_keys_router
     from app.modules.auth.router import router as auth_router
     from app.modules.auth.router import users_router
     from app.modules.leads.router import pipeline_router
@@ -159,6 +160,7 @@ def create_app() -> FastAPI:
     app.include_router(auth_router, prefix=api_prefix)
     app.include_router(onboarding_router, prefix=api_prefix)
     app.include_router(users_router, prefix=api_prefix)
+    app.include_router(api_keys_router, prefix=api_prefix)
     app.include_router(leads_router, prefix=api_prefix)
     app.include_router(pipeline_router, prefix=api_prefix)
     from app.modules.calendar.router import router as calendar_router
