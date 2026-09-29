@@ -37,6 +37,28 @@ def get_db() -> Generator[Session, None, None]:
         db.close()
 
 
+def _touch(api_key_id: str) -> None:
+    """Record that a key was used, in its own committed transaction.
+
+    Deliberately not on the request's session. That session is rolled back
+    whenever the endpoint raises, so writing there meant the timestamp survived
+    only on success: a key used exclusively for requests that fail - RBAC
+    denials, probing for endpoints it cannot reach - reported "never used",
+    which is the one signal an admin reads when deciding whether a key is
+    dormant or being attacked.
+
+    Swallows everything. Recording use must never be the reason a request fails.
+    """
+    try:
+        with SessionLocal() as session:
+            session.query(ApiKey).filter(ApiKey.id == api_key_id).update(
+                {"last_used_at": utcnow()}, synchronize_session=False
+            )
+            session.commit()
+    except Exception:  # noqa: BLE001 - telemetry must not break authentication
+        pass
+
+
 def _user_from_api_key(db: Session, key: str) -> User:
     """Resolve an API key to the user it acts as.
 
@@ -53,9 +75,7 @@ def _user_from_api_key(db: Session, key: str) -> User:
     user = db.get(User, row.user_id)
     if user is None or not user.is_active:
         raise AuthError("User inactive or not found")
-    # Best-effort: it shows on the key list so an unused key is recognisable.
-    # Never worth failing a request over.
-    row.last_used_at = utcnow()
+    _touch(row.id)
     return user
 
 

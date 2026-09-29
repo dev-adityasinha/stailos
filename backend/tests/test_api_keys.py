@@ -197,3 +197,17 @@ def test_the_creation_audit_row_names_the_key(client, admin):
     rows = [r for r in audit.json()["data"] if r["action"] == "auth.api_key_created"]
     assert rows, "no creation audit row"
     assert rows[0]["entity_id"] == created["id"]
+
+
+def test_last_used_is_recorded_even_when_the_request_fails(client, admin):
+    """A key probing endpoints it cannot reach must not report "never used" —
+    that is the signal an admin reads to decide a key is dormant."""
+    created = _create_key(client, admin)
+    headers = {"Authorization": f"Bearer {created['key']}"}
+
+    # A request that raises: the shared session is rolled back.
+    missing = client.get("/api/v1/leads/does-not-exist", headers=headers)
+    assert missing.status_code >= 400
+
+    rows = client.get("/api/v1/api-keys", headers=admin).json()["data"]
+    assert rows[0]["last_used_at"] is not None
