@@ -1,0 +1,40 @@
+# Render Blueprint — free-tier web service for the FastAPI backend.
+# Deploy: connect this repo at https://dashboard.render.com/blueprints and
+# Render provisions everything below. Free Postgres is not defined here —
+# Render's free Postgres plan expires after 90 days; use a permanent free
+# tier instead (e.g. Neon, https://neon.tech) and paste its connection
+# string into DATABASE_URL after the first deploy.
+services:
+  - type: web
+    name: pappu-ai-crm-api
+    runtime: python
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: SECRET_KEY
+        generateValue: true
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: DATABASE_URL
+        sync: false # paste your Neon/Supabase free-tier Postgres URL here
+      - key: FRONTEND_ORIGIN
+        sync: false # your Vercel deployment URL, e.g. https://pappu-ai-crm.vercel.app
+      - key: EMAIL_PROVIDER
+        value: brevo # HTTP API delivery — works even where outbound SMTP is blocked; "console" logs only
+      - key: BREVO_API_KEY
+        sync: false # API key from https://app.brevo.com/settings/keys/api
+      - key: EMAIL_FROM
+        sync: false # must be a verified sender in Brevo, e.g. "Pappu AI CRM <noreply@yourdomain.com>"
+      - key: AI_PROVIDER
+        value: mock # "llm" for real generation (set AI_LLM_API_KEY below), "external" to proxy a STAIL agent service
+      - key: AI_LLM_API_KEY
+        sync: false # Groq key from https://console.groq.com — only used when AI_PROVIDER=llm
+      - key: ERROR_MONITORING_PROVIDER
+        value: none # switch to "sentry" + set SENTRY_DSN for the free Sentry tier
+      - key: WHATSAPP_PROVIDER
+        value: console # switch to "meta_cloud" + set WHATSAPP_PHONE_NUMBER_ID/WHATSAPP_ACCESS_TOKEN for event confirmations

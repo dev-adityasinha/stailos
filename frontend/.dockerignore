@@ -1,0 +1,18 @@
+# Never copy host build artifacts into the image — they break the clean
+# `pnpm install --frozen-lockfile` (host node_modules is a different platform,
+# and pnpm aborts on a mismatched modules dir in a non-TTY build).
+node_modules
+.next
+out
+
+# Local env / secrets — production uses the NEXT_PUBLIC_API_BASE build ARG.
+.env
+.env.*
+
+# VCS, tooling, and image-only files
+.git
+.gitignore
+Dockerfile
+.dockerignore
+*.log
+.DS_Store

@@ -1,0 +1,47 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# Node
+node_modules/
+.next/
+out/
+dist/
+*.tsbuildinfo
+.turbo/
+
+# Env & secrets
+.env
+.env.*
+!.env.example
+
+# Databases & storage
+*.db
+*.sqlite3
+# Everything under storage/ is runtime data written by STORAGE_DIR. Only
+# `uploads/` was ignored, so pointing STORAGE_DIR anywhere else (a demo or a
+# second environment) silently staged uploaded files for commit.
+**/storage/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+
+# Logs
+*.log
+logs/
+
+# Claude
+.claude/
+
+# PDFs
+*.pdf

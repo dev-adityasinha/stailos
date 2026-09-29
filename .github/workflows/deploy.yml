@@ -1,0 +1,29 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+# Triggers each host's free deploy-hook URL after a push to main — no paid
+# CI/CD product involved, just a curl against Render/Vercel's own free
+# webhook endpoints. Configure these as repo secrets:
+#   RENDER_DEPLOY_HOOK_URL  — Render service → Settings → Deploy Hook
+#   VERCEL_DEPLOY_HOOK_URL  — Vercel project → Settings → Git → Deploy Hooks
+# Either secret can be left unset; that leg is skipped. Secrets are mapped
+# into job env because the `secrets` context is not usable in `if:` directly.
+jobs:
+  trigger-deploys:
+    runs-on: ubuntu-latest
+    env:
+      RENDER_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+      VERCEL_HOOK: ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}
+    steps:
+      - name: Trigger backend deploy (Render)
+        if: env.RENDER_HOOK != ''
+        run: curl -fsS -X POST "$RENDER_HOOK"
+      - name: Trigger frontend deploy (Vercel)
+        if: env.VERCEL_HOOK != ''
+        run: curl -fsS -X POST "$VERCEL_HOOK"
+      - name: Nothing configured
+        if: env.RENDER_HOOK == '' && env.VERCEL_HOOK == ''
+        run: echo "No deploy hooks configured — skipping."

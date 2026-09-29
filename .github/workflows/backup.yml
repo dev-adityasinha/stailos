@@ -1,0 +1,37 @@
+name: Database backup
+
+on:
+  schedule:
+    - cron: "0 3 * * *" # daily, 03:00 UTC
+  workflow_dispatch: {} # allow manual runs from the Actions tab
+
+# Free, zero-infra backups: pg_dump + gzip, stored as a GitHub Actions
+# artifact (no S3/paid storage). If the DB provider is Neon/Supabase, their
+# free tiers already include point-in-time recovery — this is a second,
+# independent layer, not a replacement.
+#
+# The `secrets` context is not usable in job-level `if:` — map it into job
+# env and gate each step on `env.*` instead (canonical pattern).
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+    steps:
+      - name: Skip when DATABASE_URL secret is not configured
+        if: env.DATABASE_URL == ''
+        run: echo "DATABASE_URL secret not set — nothing to back up."
+      - uses: actions/checkout@v4
+        if: env.DATABASE_URL != ''
+      - name: Install postgresql-client
+        if: env.DATABASE_URL != ''
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Run backup
+        if: env.DATABASE_URL != ''
+        run: ./scripts/backup_db.sh
+      - uses: actions/upload-artifact@v4
+        if: env.DATABASE_URL != ''
+        with:
+          name: db-backup-${{ github.run_id }}
+          path: backups/*.sql.gz
+          retention-days: 30

@@ -1,0 +1,77 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: crm
+      POSTGRES_PASSWORD: crm
+      POSTGRES_DB: pappu_crm
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U crm -d pappu_crm"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build: ./backend
+    environment:
+      DATABASE_URL: postgresql+psycopg://crm:crm@db:5432/pappu_crm
+      SECRET_KEY: ${SECRET_KEY:?run "export SECRET_KEY=$(openssl rand -hex 32)" first}
+      ENVIRONMENT: production
+      # FRONTEND_ORIGIN/NEXT_PUBLIC_API_BASE below default to localhost for a
+      # local demo of this compose file. Override both to your real domain
+      # (and set COOKIE_SECURE=true) before deploying behind a public HTTPS host.
+      FRONTEND_ORIGIN: http://localhost:3001
+      COOKIE_SECURE: "false"   # true behind HTTPS
+      # Email: defaults to console (emails land in `docker compose logs api`
+      # and the email_outbox table). Export EMAIL_PROVIDER=smtp plus the
+      # SMTP_* vars below before `docker compose up` to send real email —
+      # never hardcode credentials in this file.
+      # AI: defaults to the deterministic provider (no key, no cost). Export
+      # AI_PROVIDER=llm plus AI_LLM_API_KEY for real generation, or
+      # AI_PROVIDER=external plus AI_PROVIDER_BASE_URL to proxy a STAIL agent
+      # service. Never hardcode keys in this file.
+      AI_PROVIDER: ${AI_PROVIDER:-mock}
+      AI_LLM_API_KEY: ${AI_LLM_API_KEY:-}
+      AI_LLM_BASE_URL: ${AI_LLM_BASE_URL:-https://api.groq.com/openai/v1}
+      AI_LLM_MODEL: ${AI_LLM_MODEL:-llama-3.1-8b-instant}
+      AI_PROVIDER_BASE_URL: ${AI_PROVIDER_BASE_URL:-}
+      EMAIL_PROVIDER: ${EMAIL_PROVIDER:-console}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      EMAIL_FROM: ${EMAIL_FROM:-Pappu AI CRM <no-reply@example.com>}
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - api_uploads:/app/storage/uploads
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_BASE: http://localhost:8000/api/v1
+    ports:
+      - "3001:3000"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  api_uploads:
