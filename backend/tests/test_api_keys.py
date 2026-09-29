@@ -116,3 +116,84 @@ def test_keys_do_not_leak_across_tenants(client, admin):
 
     denied = client.delete(f"/api/v1/api-keys/{first_key['id']}", headers=other_headers)
     assert denied.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Escalation: a key must not be tradeable for something that outlives it
+# ---------------------------------------------------------------------------
+
+
+def test_a_key_cannot_be_exchanged_for_a_session(client, admin):
+    """The hole this closes: /auth/exchange/issue authenticates with
+    get_current_user, which accepts API keys. A key holder could take a code,
+    redeem it on the unauthenticated endpoint for a JWT and a 7-day rotating
+    refresh family, and keep that session alive after the key was revoked."""
+    key = _create_key(client, admin)["key"]
+    headers = {"Authorization": f"Bearer {key}"}
+
+    refused = client.post("/api/v1/auth/exchange/issue", headers=headers)
+    assert refused.status_code == 403, refused.text
+
+    # The same endpoint still works for a real signed-in session.
+    allowed = client.post("/api/v1/auth/exchange/issue", headers=admin)
+    assert allowed.status_code == 200, allowed.text
+
+
+def test_a_key_cannot_mint_more_keys(client, admin):
+    """Otherwise revoking a leaked key closes nothing: it made successors."""
+    key = _create_key(client, admin)["key"]
+    headers = {"Authorization": f"Bearer {key}"}
+
+    assert client.post("/api/v1/api-keys", headers=headers, json={"name": "child"}).status_code == 403
+    assert client.get("/api/v1/api-keys", headers=headers).status_code == 403
+
+    listed = client.get("/api/v1/api-keys", headers=admin).json()["data"]
+    assert len(listed) == 1
+
+
+def test_a_key_cannot_create_or_re_role_users(client, admin):
+    """A key is necessarily an admin key, so without this it could leave behind
+    an account with a chosen password that revocation does not touch."""
+    key = _create_key(client, admin)["key"]
+    headers = {"Authorization": f"Bearer {key}"}
+
+    created = client.post(
+        "/api/v1/users",
+        headers=headers,
+        json={
+            "email": "backdoor@stail.com",
+            "password": STRONG_PASSWORD,
+            "full_name": "Backdoor",
+            "role": "super_admin",
+        },
+    )
+    assert created.status_code == 403, created.text
+
+    # And no account was left behind.
+    users = client.get("/api/v1/users", headers=admin).json()["data"]
+    assert not any(u["email"] == "backdoor@stail.com" for u in users)
+
+
+def test_a_key_still_does_the_work_it_exists_for(client, admin):
+    """The gate is on identity, not on data. Leads must still work."""
+    key = _create_key(client, admin)["key"]
+    headers = {"Authorization": f"Bearer {key}"}
+
+    created = client.post(
+        "/api/v1/leads",
+        headers=headers,
+        json={"full_name": "Aditi Rao", "phone": "+919876500011", "source": "viralitea"},
+    )
+    assert created.status_code == 201, created.text
+    assert client.get("/api/v1/leads", headers=headers).status_code == 200
+
+
+def test_the_creation_audit_row_names_the_key(client, admin):
+    """Without a flush the id is None, so a revocation names an id that no
+    creation event matches."""
+    created = _create_key(client, admin)
+    audit = client.get("/api/v1/audit", headers=admin)
+    assert audit.status_code == 200, audit.text
+    rows = [r for r in audit.json()["data"] if r["action"] == "auth.api_key_created"]
+    assert rows, "no creation audit row"
+    assert rows[0]["entity_id"] == created["id"]

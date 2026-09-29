@@ -60,14 +60,19 @@ def _user_from_api_key(db: Session, key: str) -> User:
 
 
 def get_current_user(
+    request: Request,
     credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
     db: Session = Depends(get_db, scope="function"),
 ) -> User:
     if credentials is None:
         raise AuthError("Not authenticated")
     # Both arrive as `Authorization: Bearer ...`; the prefix says which is which.
+    # How the caller authenticated is recorded because it changes what they may
+    # do: see get_interactive_user below.
     if is_api_key(credentials.credentials):
+        request.state.auth_method = "api_key"
         return _user_from_api_key(db, credentials.credentials)
+    request.state.auth_method = "session"
     try:
         payload = decode_token(credentials.credentials, "access")
     except pyjwt.ExpiredSignatureError:
@@ -77,6 +82,34 @@ def get_current_user(
     user = db.get(User, payload["sub"])
     if user is None or not user.is_active:
         raise AuthError("User inactive or not found")
+    return user
+
+
+def get_interactive_user(
+    request: Request, user: User = Depends(get_current_user)
+) -> User:
+    """Authenticate, but refuse a caller holding only an API key.
+
+    An API key acts as its user, which is right for doing that user's work and
+    wrong for changing who that user is. Without this, a key is strictly more
+    powerful than the credential it was issued from:
+
+      * /auth/exchange/issue would hand a key holder a code redeemable, on an
+        endpoint that needs no auth at all, for a JWT and a 7-day rotating
+        refresh family. Revoking the key does not touch that family, so the
+        session outlives the credential that created it and renews itself
+        indefinitely, invisible in the API-keys list.
+      * creating keys or users would let a key mint its own successors, so
+        revoking the leaked one closes nothing.
+
+    Those are the paths that mint credentials or identities. They stay with the
+    person, at a keyboard, holding a password. Everything else - reading and
+    writing the tenant's actual data - an API key may do.
+    """
+    if getattr(request.state, "auth_method", None) == "api_key":
+        raise PermissionDeniedError(
+            "an API key cannot be used here; sign in with your account for this action"
+        )
     return user
 
 

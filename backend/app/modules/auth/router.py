@@ -3,7 +3,13 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
-from app.core.deps import get_client_ip, get_current_user, get_db, require
+from app.core.deps import (
+    get_client_ip,
+    get_current_user,
+    get_db,
+    get_interactive_user,
+    require,
+)
 from app.core.errors import NotFoundError, PermissionDeniedError
 from app.core.permissions import ADMIN_ROLES, Role, granted_actions
 from app.modules.auth import service
@@ -163,7 +169,9 @@ def verify_email(body: VerifyEmailRequest, db: Session = Depends(get_db, scope="
 from app.modules.auth.schemas import ExchangeIssueResponse, ExchangeRedeemRequest
 
 @router.post("/exchange/issue")
-def issue_exchange_code(user: User = Depends(get_current_user), db: Session = Depends(get_db, scope="function")):
+def issue_exchange_code(
+    user: User = Depends(get_interactive_user), db: Session = Depends(get_db, scope="function")
+):
     code = service.issue_exchange_code(db, user)
     return {"data": ExchangeIssueResponse(code=code).model_dump()}
 
@@ -227,6 +235,7 @@ def create_user(
     body: RegisterRequest,
     request: Request,
     ctx=Depends(require("users", "create")),
+    _interactive: User = Depends(get_interactive_user),
     db: Session = Depends(get_db, scope="function"),
 ):
     user = service.register_user(
@@ -254,6 +263,7 @@ def update_user(
     user_id: str,
     body: UserUpdate,
     ctx=Depends(require("users", "update")),
+    _interactive: User = Depends(get_interactive_user),
     db: Session = Depends(get_db, scope="function"),
 ):
     user = _get_user_scoped(db, ctx, user_id)
@@ -267,6 +277,7 @@ def update_role(
     user_id: str,
     body: RoleUpdate,
     ctx=Depends(require("users", "update")),
+    _interactive: User = Depends(get_interactive_user),
     db: Session = Depends(get_db, scope="function"),
 ):
     if Role(ctx.user.role) not in ADMIN_ROLES:
@@ -280,7 +291,10 @@ def update_role(
 
 @users_router.delete("/{user_id}")
 def deactivate_user(
-    user_id: str, ctx=Depends(require("users", "delete")), db: Session = Depends(get_db, scope="function")
+    user_id: str,
+    ctx=Depends(require("users", "delete")),
+    _interactive: User = Depends(get_interactive_user),
+    db: Session = Depends(get_db, scope="function"),
 ):
     user = _get_user_scoped(db, ctx, user_id)
     if user.id == ctx.user.id:
@@ -298,7 +312,9 @@ def deactivate_user(
 
 @api_keys_router.post("", status_code=status.HTTP_201_CREATED)
 def create_api_key(
-    body: ApiKeyCreate, user: User = Depends(get_current_user), db: Session = Depends(get_db, scope="function")
+    body: ApiKeyCreate,
+    user: User = Depends(get_interactive_user),
+    db: Session = Depends(get_db, scope="function"),
 ):
     """Issue a key. The key itself appears in this response and never again."""
     if Role(user.role) not in ADMIN_ROLES:
@@ -309,7 +325,9 @@ def create_api_key(
 
 
 @api_keys_router.get("")
-def list_api_keys(user: User = Depends(get_current_user), db: Session = Depends(get_db, scope="function")):
+def list_api_keys(
+    user: User = Depends(get_interactive_user), db: Session = Depends(get_db, scope="function")
+):
     """Keys in your workspace. Never the key material, only enough to tell them apart."""
     if Role(user.role) not in ADMIN_ROLES:
         raise PermissionDeniedError("Only admins can view API keys")
@@ -319,7 +337,9 @@ def list_api_keys(user: User = Depends(get_current_user), db: Session = Depends(
 
 @api_keys_router.delete("/{key_id}")
 def revoke_api_key(
-    key_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db, scope="function")
+    key_id: str,
+    user: User = Depends(get_interactive_user),
+    db: Session = Depends(get_db, scope="function"),
 ):
     """Revoke a key. Anything using it stops working on its next request."""
     if Role(user.role) not in ADMIN_ROLES:

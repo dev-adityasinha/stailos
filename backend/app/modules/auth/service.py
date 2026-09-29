@@ -461,6 +461,10 @@ def create_api_key(db: Session, user: User, *, name: str) -> tuple[ApiKey, str]:
         key_hash=hash_opaque_token(plain),
     )
     db.add(row)
+    # Flush first: the id is a Python-side default evaluated at flush, and the
+    # session is autoflush=False, so reading row.id before this records None and
+    # leaves the creation of an admin-equivalent credential untraceable.
+    db.flush()
     record_audit(
         db, tenant_id=user.tenant_id, action="auth.api_key_created", actor_id=user.id,
         actor_email=user.email, entity_type="api_key", entity_id=row.id,
