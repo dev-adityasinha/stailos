@@ -8,27 +8,35 @@ import {
   FileText, FolderOpen, LayoutDashboard, LogOut, Menu, Plus, Search, Settings,
   Sparkles, Ticket, Users, UserSquare2, Wallet, X,
 } from "lucide-react";
-import { ADMIN_ROLES, ROLE_LABELS, useAuth } from "@/lib/auth";
+import { ADMIN_ROLES, ROLE_LABELS, can, useAuth } from "@/lib/auth";
 import { api } from "@/lib/api";
-import { Avatar, Badge, Button, Spinner, cx } from "@/components/ui";
+import { Avatar, Badge, Button, EmptyState, Spinner, cx } from "@/components/ui";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { timeAgo } from "@/lib/format";
 
+// `resource` is what the page reads from the API; roles without read access to
+// it neither see the link nor get the page (the API would only answer 403).
 const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/leads", label: "Leads", icon: Users },
-  { href: "/pipeline", label: "Pipeline", icon: BarChart3 },
-  { href: "/customers", label: "Customers", icon: UserSquare2 },
-  { href: "/properties", label: "Properties", icon: Building2 },
-  { href: "/bookings", label: "Bookings", icon: Wallet },
-  { href: "/events", label: "Events", icon: Ticket },
-  { href: "/tasks", label: "Tasks", icon: CheckSquare },
-  { href: "/calendar", label: "Calendar", icon: Calendar },
-  { href: "/analytics", label: "Analytics", icon: BarChart3 },
-  { href: "/reports", label: "Reports", icon: FileText },
-  { href: "/documents", label: "Documents", icon: FolderOpen },
-  { href: "/notifications", label: "Notifications", icon: Bell },
+  { href: "/leads", label: "Leads", icon: Users, resource: "leads" },
+  { href: "/pipeline", label: "Pipeline", icon: BarChart3, resource: "leads" },
+  { href: "/customers", label: "Customers", icon: UserSquare2, resource: "customers" },
+  { href: "/properties", label: "Properties", icon: Building2, resource: "properties" },
+  { href: "/bookings", label: "Bookings", icon: Wallet, resource: "bookings" },
+  { href: "/events", label: "Events", icon: Ticket, resource: "events" },
+  { href: "/tasks", label: "Tasks", icon: CheckSquare, resource: "tasks" },
+  { href: "/calendar", label: "Calendar", icon: Calendar, resource: "calendar" },
+  { href: "/analytics", label: "Analytics", icon: BarChart3, resource: "analytics" },
+  { href: "/reports", label: "Reports", icon: FileText, resource: "reports" },
+  { href: "/documents", label: "Documents", icon: FolderOpen, resource: "documents" },
+  { href: "/notifications", label: "Notifications", icon: Bell, resource: "notifications" },
 ];
+
+/** Resource a path needs, for pages reached by URL rather than the sidebar. */
+function resourceFor(pathname: string): string | undefined {
+  if (pathname === "/settings/team" || pathname.startsWith("/settings/team/")) return "users";
+  return NAV.find((n) => pathname === n.href || pathname.startsWith(n.href + "/"))?.resource;
+}
 
 interface Notification {
   id: string;
@@ -188,12 +196,15 @@ function QuickActions() {
     return () => document.removeEventListener("mousedown", onClick);
   }, []);
 
+  const { user } = useAuth();
   const actions = [
-    { label: "New lead", href: "/leads?new=1" },
-    { label: "New task", href: "/tasks?new=1" },
-    { label: "New event", href: "/calendar?new=1" },
-    { label: "Upload document", href: "/documents?new=1" },
-  ];
+    { label: "New lead", href: "/leads?new=1", resource: "leads" },
+    { label: "New task", href: "/tasks?new=1", resource: "tasks" },
+    { label: "New event", href: "/calendar?new=1", resource: "calendar" },
+    { label: "Upload document", href: "/documents?new=1", resource: "documents" },
+  ].filter((a) => can(user, a.resource, "create"));
+
+  if (actions.length === 0) return null;
 
   return (
     <div className="relative" ref={ref}>
@@ -228,6 +239,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [menuOpen, setMenuOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const pageResource = resourceFor(pathname);
 
   useEffect(() => {
     if (!loading && !user) router.replace("/login");
@@ -306,7 +318,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </button>
         </div>
         <nav className="flex-1 space-y-0.5 overflow-y-auto px-2 py-2">
-          {NAV.map(({ href, label, icon: Icon }) => {
+          {NAV.filter((n) => !n.resource || can(user, n.resource)).map(({ href, label, icon: Icon }) => {
             const active = pathname === href || pathname.startsWith(href + "/");
             return (
               <Link
@@ -414,7 +426,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </div>
           </div>
         </header>
-        <main className="min-w-0 flex-1 p-5">{children}</main>
+        <main className="min-w-0 flex-1 p-5">
+          {pageResource && !can(user, pageResource) ? (
+            <EmptyState
+              title="You don't have access to this page"
+              hint={`Your role (${ROLE_LABELS[user.role] ?? user.role}) can't view this module. Ask a workspace admin if you need it.`}
+              action={<Link href="/dashboard"><Button variant="secondary">Back to dashboard</Button></Link>}
+            />
+          ) : (
+            children
+          )}
+        </main>
       </div>
     </div>
   );

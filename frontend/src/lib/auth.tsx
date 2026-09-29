@@ -16,6 +16,17 @@ export interface User {
   // Tenant context — present on /auth/me and login responses.
   tenant_name: string | null;
   onboarding_completed: boolean | null;
+  // resource → allowed actions for the user's role, from the backend's
+  // permission table. Absent on responses from an older backend.
+  permissions?: Record<string, string[]> | null;
+}
+
+/** Whether the user's role may perform `action` on `resource`. Mirrors the
+ *  server's RBAC so the UI hides what the API would refuse; without a
+ *  permission map (older backend) nothing is hidden. */
+export function can(user: User | null, resource: string, action = "read"): boolean {
+  if (!user?.permissions) return true;
+  return user.permissions[resource]?.includes(action) ?? false;
 }
 
 export const ROLE_LABELS: Record<string, string> = {

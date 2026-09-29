@@ -80,6 +80,9 @@ class UserOut(BaseModel):
     tenant_id: str | None = None
     tenant_name: str | None = None
     onboarding_completed: bool | None = None
+    # resource → allowed actions for this user's role, so the UI can hide
+    # modules the API would answer with 403.
+    permissions: dict[str, list[str]] | None = None
 
 
 class UserUpdate(BaseModel):

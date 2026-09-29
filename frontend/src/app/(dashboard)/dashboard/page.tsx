@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { ArrowRight, Flame, IndianRupee, TrendingUp, Users } from "lucide-react";
-import { useAuth } from "@/lib/auth";
+import { can, useAuth } from "@/lib/auth";
 import { useApiSWR } from "@/lib/useApiSWR";
 import { Card, PageHeader, SkeletonRows, cx } from "@/components/ui";
 import { STAGE_COLORS, STAGE_LABELS, STAGE_ORDER, formatDateTime, formatINR } from "@/lib/format";
@@ -49,9 +49,13 @@ function Stat({ label, value, sub, icon: Icon, accent }: {
 
 export default function DashboardPage() {
   const { user } = useAuth();
-  const { data: overviewData } = useApiSWR<{ data: Overview }>("/analytics/overview");
-  const { data: funnelData } = useApiSWR<{ data: FunnelRow[] }>("/analytics/funnel");
-  const { data: tasksData } = useApiSWR<{ data: Task[] }>("/tasks?status=todo&limit=6");
+  // A null key skips the fetch: roles without analytics or tasks access would
+  // only get a 403, and the skeleton below would never resolve.
+  const canAnalytics = can(user, "analytics");
+  const canTasks = can(user, "tasks");
+  const { data: overviewData } = useApiSWR<{ data: Overview }>(canAnalytics ? "/analytics/overview" : null);
+  const { data: funnelData } = useApiSWR<{ data: FunnelRow[] }>(canAnalytics ? "/analytics/funnel" : null);
+  const { data: tasksData } = useApiSWR<{ data: Task[] }>(canTasks ? "/tasks?status=todo&limit=6" : null);
 
   const overview = overviewData?.data ?? null;
   const funnel = funnelData?.data ?? [];
@@ -65,10 +69,11 @@ export default function DashboardPage() {
         title={`Good ${new Date().getHours() < 12 ? "morning" : new Date().getHours() < 17 ? "afternoon" : "evening"}, ${user?.full_name.split(" ")[0]}`}
         subtitle="Here's what's moving in your pipeline today."
       />
-      {!overview ? (
+      {canAnalytics && !overview ? (
         <SkeletonRows rows={3} height={80} />
       ) : (
         <>
+          {overview && (
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <Stat label="Active leads" value={String(overview.active_leads)}
                   sub={`${overview.total_leads} total · ${overview.hot_leads} hot`}
@@ -83,9 +88,11 @@ export default function DashboardPage() {
                   sub={`${overview.bookings_active} active · ${overview.site_visits} site visits`}
                   icon={Flame} accent="#f59e0b" />
           </div>
+          )}
 
-          <div className="mt-4 grid gap-4 lg:grid-cols-5">
+          <div className={cx("grid gap-4 lg:grid-cols-5", overview && "mt-4")}>
             {/* Funnel */}
+            {overview && (
             <Card className="p-4 lg:col-span-3">
               <div className="mb-3 flex items-center justify-between">
                 <p className="text-xs font-semibold">Sales funnel</p>
@@ -114,9 +121,11 @@ export default function DashboardPage() {
                 ))}
               </div>
             </Card>
+            )}
 
             {/* Today's tasks */}
-            <Card className="p-4 lg:col-span-2">
+            {canTasks && (
+            <Card className={cx("p-4", overview ? "lg:col-span-2" : "lg:col-span-5")}>
               <div className="mb-3 flex items-center justify-between">
                 <p className="text-xs font-semibold">Open tasks</p>
                 <Link href="/tasks" className="flex items-center gap-1 text-[11px] text-primary hover:underline">
@@ -145,6 +154,7 @@ export default function DashboardPage() {
                 </ul>
               )}
             </Card>
+            )}
           </div>
         </>
       )}

@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.core.deps import get_client_ip, get_current_user, get_db, require
 from app.core.errors import NotFoundError, PermissionDeniedError
-from app.core.permissions import ADMIN_ROLES, Role
+from app.core.permissions import ADMIN_ROLES, Role, granted_actions
 from app.modules.auth import service
 from app.modules.auth.models import User
 from app.modules.auth.schemas import (
@@ -56,6 +56,7 @@ def _user_out_with_tenant(db: Session, user: User) -> UserOut:
     from app.modules.auth.models import Tenant
 
     out = UserOut.model_validate(user)
+    out.permissions = granted_actions(user.role)
     tenant = db.get(Tenant, user.tenant_id)
     if tenant:
         # The id as well as the name: another system connecting to this workspace

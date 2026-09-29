@@ -243,6 +243,22 @@ class TestRBAC:
         assert resp.status_code == 200
         assert login(client, "rep@stail.com").status_code == 401  # deactivated
 
+    def test_me_reports_the_permissions_the_api_enforces(self, client, admin):
+        """The UI hides modules from this map, so it must match what the API
+        actually allows: every resource it grants reads, and nothing it omits."""
+        create_user_as_admin(client, admin, "caller@stail.com", "telecaller")
+        caller = auth_headers(client, "caller@stail.com")
+        perms = client.get("/api/v1/auth/me", headers=caller).json()["data"]["permissions"]
+
+        assert "bookings" not in perms and "users" not in perms
+        assert client.get("/api/v1/bookings", headers=caller).status_code == 403
+        assert client.get("/api/v1/users", headers=caller).status_code == 403
+        assert "read" in perms["leads"]
+        assert client.get("/api/v1/leads", headers=caller).status_code == 200
+
+        admin_perms = client.get("/api/v1/auth/me", headers=admin).json()["data"]["permissions"]
+        assert {"users", "bookings", "analytics"} <= admin_perms.keys()
+
     def test_admin_cannot_deactivate_self(self, client, admin):
         me = client.get("/api/v1/auth/me", headers=admin).json()["data"]
         resp = client.delete(f"/api/v1/users/{me['id']}", headers=admin)

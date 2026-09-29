@@ -125,6 +125,12 @@ ADMIN_ROLES = {Role.SUPER_ADMIN, Role.COMPANY_ADMIN}
 MANAGER_ROLES = ADMIN_ROLES | {Role.SALES_MANAGER}
 
 
+def granted_actions(role: Role | str) -> dict[str, list[str]]:
+    """resource → actions this role may perform at any scope. Sent to the
+    frontend so it hides what the server would refuse, from the same table."""
+    return {res: sorted(acts) for res, acts in PERMISSIONS.get(Role(role), {}).items()}
+
+
 def get_scope(role: Role | str, resource: str, action: str) -> Scope | None:
     """Return the widest scope this role has for resource:action, or None if denied."""
     return PERMISSIONS.get(Role(role), {}).get(resource, {}).get(action)
